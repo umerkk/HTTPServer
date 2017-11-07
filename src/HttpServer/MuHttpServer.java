@@ -1,3 +1,14 @@
+/******************************************
+ * ______________COMP6461__________________
+ * _Data Communication & Computer Networks_
+ * 
+ *			  Assignment # 2
+ * 
+ *____________Submitted By_________________
+ *		  Muhammad Umer (40015021)
+ * 	  Reza Morshed Behbahani (40039400)
+ * 
+ ******************************************/
 package HttpServer;
 
 import java.io.BufferedInputStream;
@@ -13,20 +24,32 @@ public class MuHttpServer implements Runnable {
 	public String MuMethod = null;
 	public String reqFile = "/";
 	public String Body = "";
+	boolean isVerbose = false;
+	//String working_dir = null;
 
-	public MuHttpServer(Socket sock) {
+	public MuHttpServer(Socket sock, String working_dir, boolean isVerb) {
 		this.sock = sock;
+		this.isVerbose = isVerb;
+		RemoteFileManager.working_dir = working_dir;
+		
+		if(isVerbose) {
+			System.out.println("Incoming Request - Thread Created...");
+		}
 	}
+
 	public void run() {
+		BufferedInputStream inputStream;
+		OutputStream outputStream;
+		BufferedOutputStream buffOp;
 		try {
-			BufferedInputStream inputStream = new BufferedInputStream(this.sock.getInputStream());
-			OutputStream outputStream = this.sock.getOutputStream();
-			BufferedOutputStream buffOp = new BufferedOutputStream(outputStream);
+			inputStream = new BufferedInputStream(this.sock.getInputStream());
+			outputStream = this.sock.getOutputStream();
+			buffOp = new BufferedOutputStream(outputStream);
 			header = new MuMessageHeader();
 
 			int g = inputStream.available();
 
-			byte[] buffer = new byte[g]; 
+			byte[] buffer = new byte[g];
 			inputStream.read(buffer);
 
 			String[] req = new String(buffer, "UTF-8").split(CRLF);
@@ -48,33 +71,32 @@ public class MuHttpServer implements Runnable {
 					Body += req[k];
 				}
 			}
-			
-			String StatusLine="HTTP/1.0 200 Not Found\r\n";
-			String ContentTypeLine="Content-type: text/html\r\n";
-			
-			String res = StatusLine + ContentTypeLine;
-			buffOp.write(StatusLine.getBytes("UTF-8"));
-			buffOp.write("Content-Length: 0\r\n".getBytes());
-			buffOp.write("\r\n ontent-Length: 22".getBytes());
-			/*buffOp.write(CRLF.getBytes());
-			buffOp.write(("Location: http://localhost"+reqFile).getBytes());
-			buffOp.write(CRLF.getBytes());
-			buffOp.write("Connection: close".getBytes());
-			buffOp.write(CRLF.getBytes());
-			buffOp.write(("Date: "+new Date().toString()).getBytes());
-			buffOp.write(CRLF.getBytes());
-			buffOp.write("Server: MuHttpServer".getBytes());
-			buffOp.write(CRLF.getBytes());*/
-			buffOp.write(ContentTypeLine.getBytes("UTF-8"));
 
+			switch (this.MuMethod) {
+			case "GET":
+				String op = RemoteFileManager.HandleGET(this.reqFile,header);
+				buffOp.write(op.getBytes("UTF-8"));
+				if(isVerbose) {
+					System.out.println(op);
+				}
+				break;
+			case "POST":
+				String op2 = RemoteFileManager.HandlePOST(this.reqFile,header,Body);
+				buffOp.write(op2.getBytes("UTF-8"));
+				if(isVerbose) {
+					System.out.println(op2);
+				}
+				break;
+			default:
+
+				break;
+			}
 			buffOp.flush();
-			//buffOp.close();
 			sock.close();
 
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
 	}
-	
 
 }
