@@ -11,10 +11,9 @@
  ******************************************/
 package HttpFileServer;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.FileWriter;
 import java.io.IOException;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
 import java.net.ServerSocket;
 import java.net.Socket;
 
@@ -45,12 +44,19 @@ public class httpfs {
 			}
 		}
 
-		ServerSocket soc;
+		DatagramSocket soc;
 		try {
-			soc = new ServerSocket(port);
+			soc = new DatagramSocket(port);
 			while (true) {
-				Socket inSoc = soc.accept();
-				MuHttpServer request = new MuHttpServer(inSoc, working_dir, isVerbose);
+				byte[] buf = new byte[2048];
+				
+				DatagramPacket packet 
+	              = new DatagramPacket(buf, buf.length);
+	            soc.receive(packet);
+	            
+	            
+				//Socket inSoc = soc.accept();
+				MuHttpServer request = new MuHttpServer(soc, packet, working_dir, isVerbose);
 				Thread t = new Thread(request);
 				t.start();
 				// request.process();

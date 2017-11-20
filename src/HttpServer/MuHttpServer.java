@@ -14,12 +14,16 @@ package HttpServer;
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
 import java.io.OutputStream;
+import java.net.DatagramPacket;
+import java.net.DatagramSocket;
+import java.net.InetAddress;
 import java.net.Socket;
 import java.util.Date;
 
 public class MuHttpServer implements Runnable {
 	private final static String CRLF = "\r\n";
-	Socket sock;
+	DatagramSocket sock;
+	DatagramPacket packet;
 	public MuMessageHeader header;
 	public String MuMethod = null;
 	public String reqFile = "/";
@@ -27,8 +31,9 @@ public class MuHttpServer implements Runnable {
 	boolean isVerbose = false;
 	//String working_dir = null;
 
-	public MuHttpServer(Socket sock, String working_dir, boolean isVerb) {
+	public MuHttpServer(DatagramSocket sock, DatagramPacket packet, String working_dir, boolean isVerb) {
 		this.sock = sock;
+		this.packet = packet;
 		this.isVerbose = isVerb;
 		RemoteFileManager.working_dir = working_dir;
 		
@@ -38,21 +43,30 @@ public class MuHttpServer implements Runnable {
 	}
 
 	public void run() {
-		BufferedInputStream inputStream;
+		/*
+        */
+		/*BufferedInputStream inputStream;
 		OutputStream outputStream;
-		BufferedOutputStream buffOp;
+		BufferedOutputStream buffOp;*/
 		try {
-			inputStream = new BufferedInputStream(this.sock.getInputStream());
-			outputStream = this.sock.getOutputStream();
-			buffOp = new BufferedOutputStream(outputStream);
+			//inputStream = new BufferedInputStream(this.sock.getInputStream());
+			//outputStream = this.sock.getOutputStream();
+			//buffOp = new BufferedOutputStream(outputStream);
 			header = new MuMessageHeader();
+			byte[] buf = new byte[2048];
 
-			int g = inputStream.available();
+			//int g = inputStream.available();
+			InetAddress address = packet.getAddress();
+	        int port = packet.getPort();
+	        
+	        String received = new String(packet.getData(), 0, packet.getLength());
+	        
+	        //sock.send(packet);
 
-			byte[] buffer = new byte[g];
-			inputStream.read(buffer);
+			//byte[] buffer = new byte[g];
+			//inputStream.read(buffer);
 
-			String[] req = new String(buffer, "UTF-8").split(CRLF);
+			String[] req = received.split(CRLF);
 			String[] firstLineArr = req[0].trim().split(" ");
 
 			this.MuMethod = firstLineArr[0];
@@ -75,14 +89,16 @@ public class MuHttpServer implements Runnable {
 			switch (this.MuMethod) {
 			case "GET":
 				String op = RemoteFileManager.HandleGET(this.reqFile,header);
-				buffOp.write(op.getBytes("UTF-8"));
+				//buffOp.write(op.getBytes("UTF-8"));
+				packet = new DatagramPacket(op.getBytes("UTF-8"), op.getBytes("UTF-8").length, address, port);
 				if(isVerbose) {
 					System.out.println(op);
 				}
 				break;
 			case "POST":
 				String op2 = RemoteFileManager.HandlePOST(this.reqFile,header,Body);
-				buffOp.write(op2.getBytes("UTF-8"));
+				//buffOp.write(op2.getBytes("UTF-8"));
+				packet = new DatagramPacket(op2.getBytes("UTF-8"), op2.getBytes("UTF-8").length, address, port);
 				if(isVerbose) {
 					System.out.println(op2);
 				}
@@ -91,8 +107,10 @@ public class MuHttpServer implements Runnable {
 
 				break;
 			}
-			buffOp.flush();
-			sock.close();
+			//
+			//buffOp.flush();
+			sock.send(packet);
+			//sock.close();
 
 		} catch (Exception e) {
 			e.printStackTrace();
