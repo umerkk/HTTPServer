@@ -2,7 +2,7 @@
  * ______________COMP6461__________________
  * _Data Communication & Computer Networks_
  * 
- *			  Assignment # 2
+ *			  Assignment # 3
  * 
  *____________Submitted By_________________
  *		  Muhammad Umer (40015021)
@@ -11,14 +11,9 @@
  ******************************************/
 package HttpServer;
 
-import java.io.BufferedInputStream;
-import java.io.BufferedOutputStream;
-import java.io.OutputStream;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
-import java.net.Socket;
-import java.util.Date;
 
 public class MuHttpServer implements Runnable {
 	private final static String CRLF = "\r\n";
@@ -77,19 +72,20 @@ public class MuHttpServer implements Runnable {
         	return false;
 		// Everything done.
 	}
+	
+	private long getNextSeqNumber() {
+		if(this.mySeqNum >= 7l){
+			this.mySeqNum =  0l;
+		} else {
+			this.mySeqNum++;
+		}
+		return this.mySeqNum;
+	}
 
 	public void run() {
-		/*
-		*/
-		/*
-		 * BufferedInputStream inputStream; OutputStream outputStream;
-		 * BufferedOutputStream buffOp;
-		 */
+
 		try {
-			// inputStream = new
-			// BufferedInputStream(this.sock.getInputStream());
-			// outputStream = this.sock.getOutputStream();
-			// buffOp = new BufferedOutputStream(outputStream);
+
 			header = new MuMessageHeader();
 			Packet resp = null;
 
@@ -109,6 +105,7 @@ public class MuHttpServer implements Runnable {
 			}
 			
 			while(isHandShake == false) {
+				header = new MuMessageHeader();
 				buf = new byte[1024];
 				DatagramPacket packet 
 	              = new DatagramPacket(buf, buf.length);
@@ -147,19 +144,15 @@ public class MuHttpServer implements Runnable {
 				switch (this.MuMethod) {
 				case "GET":
 					String op = RemoteFileManager.HandleGET(this.reqFile, header);
-					// buffOp.write(op.getBytes("UTF-8"));
-					// packet = new DatagramPacket(op.getBytes("UTF-8"),
-					// op.getBytes("UTF-8").length, address, port);
+				
 					resp = p.toBuilder().setPayload(op.getBytes("UTF-8")).create();
 					if (isVerbose) {
 						System.out.println(op);
 					}
 					break;
 				case "POST":
-					String op2 = RemoteFileManager.HandlePOST(this.reqFile, header, Body);
-					// buffOp.write(op2.getBytes("UTF-8"));
-					// packet = new DatagramPacket(op2.getBytes("UTF-8"),
-					// op2.getBytes("UTF-8").length, address, port);
+					String op2 = RemoteFileManager.HandlePOST(this.reqFile, header, Body.trim());
+					
 					resp = p.toBuilder().setPayload(op2.getBytes("UTF-8")).create();
 					if (isVerbose) {
 						System.out.println(op2);
