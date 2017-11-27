@@ -2,7 +2,7 @@
  * ______________COMP6461__________________
  * _Data Communication & Computer Networks_
  * 
- *			  Assignment # 2
+ *			  Assignment # 3
  * 
  *____________Submitted By_________________
  *		  Muhammad Umer (40015021)
@@ -48,7 +48,7 @@ public class httpfs {
 		try {
 			soc = new DatagramSocket(port);
 			while (true) {
-				byte[] buf = new byte[2048];
+				byte[] buf = new byte[1024];
 				
 				DatagramPacket packet 
 	              = new DatagramPacket(buf, buf.length);
