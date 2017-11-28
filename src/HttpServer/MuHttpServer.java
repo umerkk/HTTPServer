@@ -14,6 +14,10 @@ package HttpServer;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.net.InetAddress;
+import java.nio.ByteBuffer;
+import java.util.ArrayList;
+import java.util.Arrays;
+
 
 public class MuHttpServer implements Runnable {
 	private final static String CRLF = "\r\n";
@@ -48,7 +52,7 @@ public class MuHttpServer implements Runnable {
 		InetAddress address = InetAddress.getByName("localhost");
 
 		// Response from Server
-		
+
 		if (pr.getType() == 1)
 			this.clientSeqNum = pr.getSequenceNumber();
 		else
@@ -62,24 +66,62 @@ public class MuHttpServer implements Runnable {
 		this.sock.send(packet);
 
 		byte[] buf = new byte[1024];
-		DatagramPacket packet 
-          = new DatagramPacket(buf, buf.length);
-        sock.receive(packet);
-        Packet pAck = Packet.fromBytes(packet.getData());
-        if(pAck.getType() == 2)
-        	return true;
-        else 
-        	return false;
+		DatagramPacket packet = new DatagramPacket(buf, buf.length);
+		sock.receive(packet);
+		Packet pAck = Packet.fromBytes(packet.getData());
+		if (pAck.getType() == 2)
+			return true;
+		else
+			return false;
 		// Everything done.
 	}
-	
+
 	private long getNextSeqNumber() {
-		if(this.mySeqNum >= 7l){
-			this.mySeqNum =  0l;
+		if (this.clientSeqNum >= 7l) {
+			this.clientSeqNum = 0l;
 		} else {
-			this.mySeqNum++;
+			this.clientSeqNum++;
 		}
-		return this.mySeqNum;
+		return this.clientSeqNum;
+	}
+
+	public byte[][] splitBytes(final byte[] data, final int chunkSize) {
+		final int length = data.length;
+		final byte[][] dest = new byte[(length + chunkSize - 1) / chunkSize][];
+		int destIndex = 0;
+		int stopIndex = 0;
+
+		for (int startIndex = 0; startIndex + chunkSize <= length; startIndex += chunkSize) {
+			stopIndex += chunkSize;
+			dest[destIndex++] = Arrays.copyOfRange(data, startIndex, stopIndex);
+		}
+
+		if (stopIndex < length)
+			dest[destIndex] = Arrays.copyOfRange(data, stopIndex, length);
+
+		return dest;
+	}
+
+	private void sendRequest(Packet p) throws Exception {
+		InetAddress address = InetAddress.getByName("localhost");
+
+		packet = new DatagramPacket(p.toBytes(), p.toBytes().length, address, 3000);
+		sock.send(packet);
+	}
+
+	private boolean recieveAck() throws Exception {
+		byte[] buf = new byte[1024];
+		DatagramPacket packet = new DatagramPacket(buf, buf.length);
+
+		this.sock.receive(packet);
+
+		Packet p = Packet.fromBytes(packet.getData());
+		if (p.getType() == 4) {
+			this.clientSeqNum = p.getSequenceNumber();
+			return true;
+		} else {
+			return false;
+		}
 	}
 
 	public void run() {
@@ -93,27 +135,25 @@ public class MuHttpServer implements Runnable {
 
 			// int g = inputStream.available();
 			// InetAddress address = packet.getAddress();
-			InetAddress address = InetAddress.getByName("localhost");
+			//InetAddress address = InetAddress.getByName("localhost");
 			Packet p = Packet.fromBytes(packet.getData());
-			
+
 			boolean rsp = doHandShake(p);
-			if(rsp) {
+			if (rsp) {
 				System.out.println("Handshake Successful.");
-				isHandShake=false;
+				isHandShake = false;
 			} else {
 				System.out.println("Handshake FAILED.");
 			}
-			
-			while(isHandShake == false) {
+
+			while (isHandShake == false) {
 				header = new MuMessageHeader();
 				buf = new byte[1024];
-				DatagramPacket packet 
-	              = new DatagramPacket(buf, buf.length);
-	            sock.receive(packet);
-	            
-				
+				DatagramPacket packet = new DatagramPacket(buf, buf.length);
+				sock.receive(packet);
+				p = null;
 				p = Packet.fromBytes(packet.getData());
-				
+
 				String received = new String(p.getPayload(), 0, p.getPayload().length);
 
 				// sock.send(packet);
@@ -143,20 +183,49 @@ public class MuHttpServer implements Runnable {
 
 				switch (this.MuMethod) {
 				case "GET":
-					String op = RemoteFileManager.HandleGET(this.reqFile, header);
-				
-					resp = p.toBuilder().setPayload(op.getBytes("UTF-8")).create();
+					ArrayList<String> op = RemoteFileManager.HandleGET(this.reqFile, header);
+					if (op.size() <= 1) {
+						resp = p.toBuilder().setPayload(op.get(0).getBytes("UTF-8")).create();
+						sendRequest(resp);
+						if (isVerbose) {
+							System.out.println(op.get(0));
+						}
+					} else {
+						//long size = RemoteFileManager.GetFileSizeOfRequest(this.reqFile);
+						//ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+						//buffer.putLong(op.size());
+						resp = p.toBuilder().setPayload(String.valueOf(op.size()).getBytes()).setType(3).create();
+
+						sendRequest(resp);
+						if (isVerbose) {
+							System.out.println(op.size());
+						}
+						boolean isAck = recieveAck();
+
+						if (isAck) {
+							for (int k = 0; k < op.size(); k++) {
+								resp = p.toBuilder().setPayload(op.get(k).getBytes("UTF-8"))
+										.setSequenceNumber(getNextSeqNumber()).create();
+								sendRequest(resp);
+								
+								if (isVerbose) {
+									System.out.println(op.get(k));
+								}
+							}
+						}
+					}
 					if (isVerbose) {
 						System.out.println(op);
 					}
 					break;
 				case "POST":
 					String op2 = RemoteFileManager.HandlePOST(this.reqFile, header, Body.trim());
-					
+
 					resp = p.toBuilder().setPayload(op2.getBytes("UTF-8")).create();
 					if (isVerbose) {
 						System.out.println(op2);
 					}
+					sendRequest(resp);
 					break;
 				default:
 
@@ -164,10 +233,11 @@ public class MuHttpServer implements Runnable {
 				}
 				//
 				// buffOp.flush();
-				packet = new DatagramPacket(resp.toBytes(), resp.toBytes().length, address, 3000);
+				// packet = new DatagramPacket(resp.toBytes(),
+				// resp.toBytes().length, address, 3000);
 				// new DatagramPacket(p.toBytes(), p.toBytes().length, address,
 				// 3000);
-				sock.send(packet);
+				// sock.send(packet);
 				// sock.close();
 			}
 		} catch (Exception e) {

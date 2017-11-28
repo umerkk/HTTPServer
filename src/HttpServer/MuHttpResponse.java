@@ -12,6 +12,9 @@
 
 package HttpServer;
 
+import java.util.ArrayList;
+import java.util.Arrays;
+
 import com.google.gson.Gson;
 
 public class MuHttpResponse {
@@ -64,6 +67,69 @@ public class MuHttpResponse {
 			op += body;
 		}
 		return op;
+	}
+	
+	public ArrayList<String> GetResponsePackets(String contentype) throws Exception {
+		String op = "";
+		ArrayList<String> output = new ArrayList<String>();
+		String bodyTxt = "";
+
+		op += httpVersion + " ";
+		op += responseCode + CRLF;
+
+		MuMessageHeader hd = new MuMessageHeader();
+		hd.addHeader("Content-type", ContentType);
+		
+		hd.addHeader("Connection", "Close");
+		hd.addHeader("Content-length", String.valueOf(body.length()));
+		hd.addHeader("Server", Server);
+		
+		
+		//op += "Content-type: " + ContentType + CRLF;
+		//op += "Content-length: " + body.length() + CRLF;
+		//op += "Connection: close" + CRLF;
+		//op += "Server: " + Server + CRLF;
+		//op += CRLF;
+		
+		int payloadSize = 1013 - (op.getBytes().length + (hd.toString() + CRLF).getBytes().length);
+		
+		if (contentype != null) {
+			switch (contentype) {
+			case "application/json":
+				Gson parser = new Gson();
+				bodyTxt = parser.toJson(body);
+				break;
+			default:
+				bodyTxt = body;
+			}
+		} else {
+			bodyTxt = body;
+		}
+		byte[][] dataChunks = splitBytes(bodyTxt.getBytes(), payloadSize);
+		for(int k=0;k<dataChunks.length;k++) {
+			hd.removeHeader("Content-length");
+			hd.addHeader("Content-length", String.valueOf(new String(dataChunks[k]).length()));
+			output.add(op + hd.toString() + CRLF + new String(dataChunks[k]));
+		}
+		
+		return output;
+	}
+	
+	public byte[][] splitBytes(final byte[] data, final int chunkSize) {
+		final int length = data.length;
+		final byte[][] dest = new byte[(length + chunkSize - 1) / chunkSize][];
+		int destIndex = 0;
+		int stopIndex = 0;
+
+		for (int startIndex = 0; startIndex + chunkSize <= length; startIndex += chunkSize) {
+			stopIndex += chunkSize;
+			dest[destIndex++] = Arrays.copyOfRange(data, startIndex, stopIndex);
+		}
+
+		if (stopIndex < length)
+			dest[destIndex] = Arrays.copyOfRange(data, stopIndex, length);
+
+		return dest;
 	}
 
 }

@@ -15,18 +15,19 @@ import java.io.File;
 import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.util.ArrayList;
 
 class RemoteFileManager {
 
 	public static String working_dir = System.getProperty("user.dir");
 
-	static String HandleGET(String filePath, MuMessageHeader header) {
+	static ArrayList<String> HandleGET(String filePath, MuMessageHeader header) throws Exception {
 		String outputBody = "";
 		MuHttpResponse response;
 		if (filePath.equals("/")) {
 			File folder = new File(working_dir);
 			File[] listOfFiles = folder.listFiles();
-			
+
 			for (int i = 0; i < listOfFiles.length; i++) {
 				if (listOfFiles[i].isFile()) {
 					outputBody += listOfFiles[i].getName() + "\r\n";
@@ -34,46 +35,55 @@ class RemoteFileManager {
 					outputBody += listOfFiles[i].getName() + "\r\n";
 				}
 			}
-			response = new MuHttpResponse("200 OK","text/html",outputBody);
+			response = new MuHttpResponse("200 OK", "text/html", outputBody);
 		} else {
-			File file = new File(working_dir+filePath);
-			if(file.exists()) {
-				//Return
-				outputBody +=  readFile(working_dir+filePath);
-				if(!outputBody.equals("null"))
-					response = new MuHttpResponse("200 OK","text/html",outputBody);
+			File file = new File(working_dir + filePath);
+			if (file.exists()) {
+				// Return
+				outputBody += readFile(working_dir + filePath);
+				if (!outputBody.equals("null"))
+					response = new MuHttpResponse("200 OK", "text/html", outputBody);
 				else
-					response = new MuHttpResponse("401 Unauthorized","text/html","");
+					response = new MuHttpResponse("401 Unauthorized", "text/html", "");
 			} else {
-				//Not Found
-				response = new MuHttpResponse("404 Not Found","text/html",outputBody);
+				// Not Found
+				response = new MuHttpResponse("404 Not Found", "text/html", outputBody);
 			}
 		}
-		return response.GetResponseString(header.getHeaderValue("Content-type"));
+		return response.GetResponsePackets(header.getHeaderValue("Content-type"));
 	}
-	
-	static String HandlePOST (String filePath, MuMessageHeader header, String Body) {
+
+	static long GetFileSizeOfRequest(String filePath) {
+		File file = new File(working_dir + filePath);
+		if (file.exists()) {
+			return file.length();
+		} else {
+			return 0;
+		}
+	}
+
+	static String HandlePOST(String filePath, MuMessageHeader header, String Body) {
 		String outputBody = "";
 		MuHttpResponse response;
 		try {
-		if (filePath.equals("/")) {
-			response = new MuHttpResponse("400 Bad Request","text/html",outputBody);
-		} else {
-			File file = new File(working_dir+filePath);
-			if(!file.exists()) {
-				file.createNewFile();
+			if (filePath.equals("/")) {
+				response = new MuHttpResponse("400 Bad Request", "text/html", outputBody);
+			} else {
+				File file = new File(working_dir + filePath);
+				if (!file.exists()) {
+					file.createNewFile();
+				}
+				boolean overWrite = header.getHeaderValue("Overwrite") == null ? false : true;
+				writeFile(working_dir + filePath, Body, overWrite);
+				response = new MuHttpResponse("200 Ok", "text/html", outputBody);
 			}
-			boolean overWrite = header.getHeaderValue("Overwrite") == null ? false : true;
-			writeFile(working_dir+filePath,Body,overWrite);
-			response = new MuHttpResponse("200 Ok","text/html",outputBody);
-		}
 		} catch (Exception e) {
-			e.printStackTrace();	
-			response = new MuHttpResponse("500 Internal Server Error","text/html",outputBody);
+			e.printStackTrace();
+			response = new MuHttpResponse("500 Internal Server Error", "text/html", outputBody);
 		}
 		return response.GetResponseString(header.getHeaderValue("Content-type"));
 	}
-	
+
 	private static String readFile(String filename) {
 		String content = null;
 		File file = new File(filename);
@@ -98,7 +108,7 @@ class RemoteFileManager {
 		}
 		return content;
 	}
-	
+
 	private static void writeFile(String filename, String content, boolean isNotOverwrite) {
 		File file = new File(filename);
 		FileWriter writer = null;
